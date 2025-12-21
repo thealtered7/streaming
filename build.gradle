@@ -23,6 +23,12 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     
+    // Spring Data JPA
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    
+    // PostgreSQL driver
+    runtimeOnly 'org.postgresql:postgresql'
+    
     // Log4j2 dependencies
     implementation 'org.springframework.boot:spring-boot-starter-log4j2'
     
@@ -40,7 +46,8 @@ task dockerBuild(type: Exec) {
 }
 
 // Docker run task
+// Note: Network name matches docker-compose network (project_name + network_name)
 task dockerRun(type: Exec) {
     dependsOn dockerBuild
-    commandLine 'docker', 'run', '-p', '8080:8080', 'streaming-app'
+    commandLine 'docker', 'run', '--network', 'streaming_streaming', '-p', '8080:8080', 'streaming-app'
 } 

@@ -1,14 +1,52 @@
 services:
-  streaming-app:
-    build: .
-    ports:
-      - "8080:8080"
+  postgres:
+    image: postgres:16-alpine
+    container_name: streaming-postgres
     environment:
-      - JAVA_OPTS=-Xmx512m -Xms256m
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    networks:
+      - streaming
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s 
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # streaming-app:
+  #   build: .
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - JAVA_OPTS=-Xmx512m -Xms256m
+  #     - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/geo
+  #     - SPRING_DATASOURCE_USERNAME=streaming_geo
+  #     - SPRING_DATASOURCE_PASSWORD=streaming_geo_password
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   networks:
+  #     - streaming
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 40s 
+  
+
+networks:
+  streaming:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local 
