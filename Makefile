@@ -1,4 +1,4 @@
-.PHONY: help build docker-build docker-run docker-up docker-down clean test run geo-shell post-geoclient post-scalar put-scalar
+.PHONY: help build docker-build docker-run docker-up docker-down docker-stop clean test run geo-shell post-geoclient post-scalar put-scalar register-debezium scalars-to-stdout kafka-topics debezium-status debezium-logs
 
 # Default target
 help:
@@ -8,12 +8,18 @@ help:
 	@echo "  run            - Run the Spring Boot application"
 	@echo "  docker-build   - Build the Docker image"
 	@echo "  docker-run     - Run the Docker container"
+	@echo "  docker-stop-streaming-webapp    - Stop the streaming-webapp container"
 	@echo "  docker-up      - Start services using docker-compose"
 	@echo "  docker-down    - Stop services using docker-compose"
 	@echo "  geo-shell      - Launch psql shell connected to geo database"
 	@echo "  post-geoclient - POST a GeoClient to the /geo-clients endpoint"
 	@echo "  post-scalar    - POST a Scalar to the /scalars endpoint"
-	@echo "  put-scalar     - PUT to update a Scalar by ID"
+	@echo "  put-scalar       - PUT to update a Scalar by ID"
+	@echo "  register-debezium  - Register Debezium PostgreSQL connector (requires docker-up)"
+	@echo "  debezium-status   - Show Debezium connector status (debug)"
+	@echo "  debezium-logs     - Show Kafka Connect logs (debug)"
+	@echo "  scalars-to-stdout  - Print scalar CDC topic contents from Kafka (requires docker-up)"
+	@echo "  kafka-topics     - List Kafka topics (requires docker-up)"
 	@echo "  clean          - Clean build artifacts"
 	@echo "  clean-docker   - Remove Docker containers and images"
 
@@ -37,6 +43,10 @@ docker-build:
 docker-run:
 	./gradlew dockerRun
 
+# Stop the streaming-webapp container
+docker-stop-streaming-webapp:
+	docker stop streaming-webapp 2>/dev/null || true
+
 # Start services using docker-compose (in background)
 docker-up:
 	docker compose up --build -d
@@ -48,6 +58,59 @@ docker-up-d:
 # Stop services using docker-compose
 docker-down:
 	docker compose down
+
+# List Kafka topics (useful to verify geo.public.scalars exists)
+kafka-topics:
+	docker compose exec kafka kafka-topics.sh --list --bootstrap-server localhost:9092
+
+# Consume and print scalar CDC topic (geo.public.scalars) to stdout
+# Note: Requires docker-up, register-debezium, and data in scalars table.
+# Run 'make post-scalar' in another terminal to insert data, or use the app.
+# Uses docker exec if schema-registry is running; otherwise runs a one-off container
+scalars-to-stdout:
+	@if docker exec streaming-schema-registry echo >/dev/null 2>&1; then \
+		docker exec -it streaming-schema-registry \
+			kafka-avro-console-consumer \
+			--bootstrap-server kafka:9092 \
+			--topic geo.public.scalars \
+			--from-beginning \
+			--property schema.registry.url=http://localhost:8081; \
+	else \
+		docker run -it --rm --network host \
+			confluentinc/cp-schema-registry:7.5.0 \
+			kafka-avro-console-consumer \
+			--bootstrap-server localhost:9092 \
+			--topic geo.public.scalars \
+			--from-beginning \
+			--property schema.registry.url=http://localhost:8081; \
+	fi
+
+# Show Debezium connector status (useful for debugging)
+debezium-status:
+	@echo "=== Connectors ==="
+	@curl -s http://localhost:8083/connectors
+	@echo ""
+	@echo ""
+	@echo "=== Connector status ==="
+	@curl -s http://localhost:8083/connectors/streaming-postgres-connector/status
+	@echo ""
+	@echo ""
+	@echo "=== Connector config ==="
+	@curl -s http://localhost:8083/connectors/streaming-postgres-connector
+	@echo ""
+
+# Show Kafka Connect logs
+debezium-logs:
+	docker compose logs kafka-connect --tail=100
+
+# Register Debezium PostgreSQL connector with Kafka Connect
+# Note: Run after docker-up; may need to wait ~30s for Kafka Connect to be ready
+register-debezium:
+	@echo "Registering Debezium PostgreSQL connector..."
+	@echo "Response:"
+	@curl -s -w "\nHTTP %{http_code}\n" -X POST -H "Content-Type: application/json" \
+		--data @docker/kafka-connect/postgres-connector.json \
+		http://localhost:8083/connectors
 
 # Launch psql shell connected to geo database
 # Note: Requires docker-compose services to be running (make docker-up-d)
@@ -105,6 +168,7 @@ clean-docker:
 	docker compose down -v
 	docker rmi streaming-app || true
 	docker rmi streaming-streaming-app || true
+	docker rmi streaming-kafka-connect:latest || true
 
 # Full clean (build + docker)
 clean-all: clean clean-docker

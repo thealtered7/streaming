@@ -9,6 +9,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "geo" <<-EOSQL
     
     -- Grant usage on the public schema
     GRANT USAGE ON SCHEMA public TO streaming_geo;
+    GRANT USAGE ON SCHEMA public TO debezium;
 
     -- Create the geo_clients table matching the GeoClient entity
     CREATE TABLE IF NOT EXISTS geo_clients (
@@ -30,6 +31,18 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "geo" <<-EOSQL
     -- Ensure defaults on existing scalars table (idempotent for re-runs)
     ALTER TABLE scalars ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;
     ALTER TABLE scalars ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
+
+    -- Full replication for CDC (required for UPDATE/DELETE to include full row)
+    ALTER TABLE geo_clients REPLICA IDENTITY FULL;
+    ALTER TABLE scalars REPLICA IDENTITY FULL;
+
+    -- Publication for Debezium CDC
+    DROP PUBLICATION IF EXISTS debezium_publication;
+    CREATE PUBLICATION debezium_publication FOR TABLE geo_clients, scalars;
+
+    -- Debezium needs SELECT for initial snapshot
+    GRANT SELECT ON geo_clients TO debezium;
+    GRANT SELECT ON scalars TO debezium;
 
     -- Grant privileges on all existing tables in public schema
     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO streaming_geo;
