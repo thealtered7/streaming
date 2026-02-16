@@ -29,6 +29,9 @@ dependencies {
     // PostgreSQL driver
     runtimeOnly 'org.postgresql:postgresql'
     
+    // H2 database for DDL generation (in-memory, no connection needed)
+    runtimeOnly 'com.h2database:h2'
+    
     // Log4j2 dependencies
     implementation 'org.springframework.boot:spring-boot-starter-log4j2'
     
@@ -39,6 +42,15 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+bootRun {
+    mainClass = 'com.keene.streaming.StreamingWebApplication'
+    args = ['--spring.profiles.active=local']
+}
+
+bootJar {
+    mainClass = 'com.keene.streaming.StreamingWebApplication'
+}
+
 // Docker build task
 task dockerBuild(type: Exec) {
     dependsOn build
@@ -46,8 +58,29 @@ task dockerBuild(type: Exec) {
 }
 
 // Docker run task
-// Note: Network name matches docker-compose network (project_name + network_name)
+// Note: Requires docker-up to be running first (postgres + streaming_streaming network)
+// Network name matches docker-compose network (project_name + network_name)
 task dockerRun(type: Exec) {
     dependsOn dockerBuild
-    commandLine 'docker', 'run', '--network', 'streaming_streaming', '-p', '8080:8080', 'streaming-app'
+    commandLine 'docker', 'run', '--rm', '--name', 'streaming-webapp', '--network', 'streaming_streaming', '-p', '8080:8080',
+        '-e', 'SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/geo',
+        '-e', 'SPRING_DATASOURCE_USERNAME=streaming_geo',
+        '-e', 'SPRING_DATASOURCE_PASSWORD=streaming_geo_password',
+        'streaming-app'
 } 
+
+// Generate DDL scripts from JPA entities
+task generateDdl(type: JavaExec) {
+    group = 'build'
+    description = 'Generates DDL scripts from JPA entities in core/models directory'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.keene.streaming.config.DdlGeneratorApplication'
+    // Override datasource to use H2 in-memory database for DDL generation
+    systemProperty 'spring.datasource.url', 'jdbc:h2:mem:ddlgen'
+    systemProperty 'spring.datasource.driver-class-name', 'org.h2.Driver'
+    systemProperty 'spring.jpa.properties.hibernate.dialect', 'org.hibernate.dialect.PostgreSQLDialect'
+    // Ensure output directory exists
+    doFirst {
+        file('build/ddl').mkdirs()
+    }
+}
