@@ -9,7 +9,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "geo" <<-EOSQL
     
     -- Grant usage on the public schema
     GRANT USAGE ON SCHEMA public TO streaming_geo;
-    GRANT USAGE ON SCHEMA public TO debezium;
+    GRANT USAGE ON SCHEMA public TO wal_reader_role;
 
     -- Create the geo_clients table matching the GeoClient entity
     CREATE TABLE IF NOT EXISTS geo_clients (
@@ -40,9 +40,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "geo" <<-EOSQL
     DROP PUBLICATION IF EXISTS debezium_publication;
     CREATE PUBLICATION debezium_publication FOR TABLE geo_clients, scalars;
 
-    -- Debezium needs SELECT for initial snapshot
-    GRANT SELECT ON geo_clients TO debezium;
-    GRANT SELECT ON scalars TO debezium;
+    -- WAL readers need SELECT for initial snapshot
+    GRANT SELECT ON geo_clients TO wal_reader_role;
+    GRANT SELECT ON scalars TO wal_reader_role;
 
     -- Grant privileges on all existing tables in public schema
     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO streaming_geo;

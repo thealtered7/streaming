@@ -1,8 +1,20 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    build: ./docker/postgres
+    image: streaming-postgres:latest
     container_name: streaming-postgres
-    command: ["postgres", "-c", "wal_level=logical", "-c", "max_replication_slots=4", "-c", "max_wal_senders=4"]
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=4
+      - -c
+      - max_wal_senders=4
+      - -c
+      - shared_preload_libraries=pglogical
+      - -c
+      - max_worker_processes=10
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

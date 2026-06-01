@@ -1,4 +1,4 @@
-.PHONY: help build docker-build docker-run docker-up docker-down docker-stop clean test run geo-shell post-geoclient post-scalar put-scalar register-debezium scalars-to-stdout kafka-topics debezium-status debezium-logs
+.PHONY: help build docker-build docker-run docker-up docker-down docker-stop clean test run geo-shell extract-pipeline extract-fart post-geoclient post-scalar put-scalar register-debezium scalars-to-stdout kafka-topics debezium-status debezium-logs
 
 # Default target
 help:
@@ -12,6 +12,8 @@ help:
 	@echo "  docker-up      - Start services using docker-compose"
 	@echo "  docker-down    - Stop services using docker-compose"
 	@echo "  geo-shell      - Launch psql shell connected to geo database"
+	@echo "  extract-pipeline - Extract WAL changes via pg_recvlogical to data/extract_pipeline/"
+	@echo "  extract-fart       - Extract WAL via pg_recvlogical from fart slot (pglogical) to data/extract_pipeline/"
 	@echo "  post-geoclient - POST a GeoClient to the /geo-clients endpoint"
 	@echo "  post-scalar    - POST a Scalar to the /scalars endpoint"
 	@echo "  put-scalar       - PUT to update a Scalar by ID"
@@ -120,6 +122,67 @@ geo-shell:
 		-e PGPASSWORD=postgres \
 		postgres:16-alpine \
 		psql -h postgres -U postgres -d geo
+
+
+# Extract WAL changes from extract_slot up to current LSN via pg_recvlogical
+# Note: Requires docker-compose services to be running (make docker-up)
+extract-pipeline:
+	@mkdir -p data/extract_pipeline
+	@END_LSN=$$(docker run --rm \
+		--network streaming_streaming \
+		-e PGPASSWORD=postgres \
+		postgres:16-alpine \
+		psql -h postgres -U postgres -d geo -tAc "SELECT pg_current_wal_lsn();"); \
+	OUTFILE=extract-$$(date +%Y%m%dT%H%M%S).json; \
+	echo "Extracting WAL changes up to $$END_LSN..."; \
+	docker run --rm \
+		--network streaming_streaming \
+		-v "$$(pwd)/data/extract_pipeline:/data/extract_pipeline" \
+		-e PGPASSWORD=extract_pipeline_user \
+		postgres:16-alpine \
+		pg_recvlogical \
+			-h postgres \
+			-d geo \
+			-U extract_pipeline_user \
+			--slot extract_slot \
+			--start \
+			--no-loop \
+			--endpos="$$END_LSN" \
+			-o proto_version=1 \
+			-o publication_names=extract_publication \
+			-f /data/extract_pipeline/$$OUTFILE && \
+	echo "Done. Output: data/extract_pipeline/$$OUTFILE"
+
+# Extract WAL changes from fart slot (pglogical) up to current LSN via pg_recvlogical
+# Note: Requires docker-compose services to be running; slot fart must exist with pglogical plugin
+extract-fart:
+	@mkdir -p data/extract_pipeline
+	@END_LSN=$$(docker run --rm \
+		--network streaming_streaming \
+		-e PGPASSWORD=postgres \
+		postgres:16-alpine \
+		psql -h postgres -U postgres -d geo -tAc "SELECT pg_current_wal_lsn();"); \
+	OUTFILE=fart-$$(date +%Y%m%dT%H%M%S).json; \
+	echo "Extracting WAL changes from fart up to $$END_LSN..."; \
+	docker run --rm \
+		--network streaming_streaming \
+		-v "$$(pwd)/data/extract_pipeline:/data/extract_pipeline" \
+		-e PGPASSWORD=extract_pipeline_user \
+		postgres:16-alpine \
+		pg_recvlogical \
+			-h postgres \
+			-d geo \
+			-U extract_pipeline_user \
+			--slot fart \
+			--start \
+			--no-loop \
+			--endpos="$$END_LSN" \
+			-o min_proto_version=1 \
+			-o max_proto_version=1 \
+			-o startup_params_format=1 \
+			-o proto_format=json \
+			-f /data/extract_pipeline/$$OUTFILE && \
+	echo "Done. Output: data/extract_pipeline/$$OUTFILE"
 
 # POST a GeoClient to the /geo-clients endpoint
 # Usage: make post-geoclient [GUID=550e8400-e29b-41d4-a716-446655440000]
