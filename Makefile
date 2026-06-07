@@ -24,6 +24,7 @@ help:
 	@echo "  kafka-topics     - List Kafka topics (requires docker-up)"
 	@echo "  clean          - Clean build artifacts"
 	@echo "  clean-docker   - Remove Docker containers and images"
+	@echo "  put-lots-of-scalars - Put 1000 scalars to the /scalars endpoint"
 
 # Build the project
 build:
@@ -235,4 +236,5 @@ clean-docker:
 
 # Full clean (build + docker)
 clean-all: clean clean-docker
+
 

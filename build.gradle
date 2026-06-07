@@ -22,6 +22,10 @@ java {
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-observation'
+    implementation 'io.micrometer:micrometer-tracing-bridge-otel'
+    implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
+    runtimeOnly 'io.micrometer:micrometer-registry-otlp'
     
     // Spring Data JPA
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -66,6 +70,8 @@ task dockerRun(type: Exec) {
         '-e', 'SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/geo',
         '-e', 'SPRING_DATASOURCE_USERNAME=streaming_geo',
         '-e', 'SPRING_DATASOURCE_PASSWORD=streaming_geo_password',
+        '-e', 'MANAGEMENT_OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces',
+        '-e', 'MANAGEMENT_OTLP_METRICS_EXPORT_URL=http://otel-collector:4318/v1/metrics',
         'streaming-app'
 } 
 

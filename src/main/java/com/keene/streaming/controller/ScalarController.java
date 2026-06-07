@@ -1,10 +1,10 @@
 package com.keene.streaming.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.keene.service.ScalarService;
 import com.keene.streaming.core.models.Scalar;
+import com.keene.streaming.observability.GeoServiceObservability;
 
 @RestController
 @RequestMapping("/scalars")
@@ -27,56 +28,67 @@ public class ScalarController {
     private static final Logger logger = LoggerFactory.getLogger(ScalarController.class);
 
     private final ScalarService scalarService;
+    private final GeoServiceObservability observability;
 
-    @Autowired
-    public ScalarController(ScalarService scalarService) {
+    public ScalarController(ScalarService scalarService, GeoServiceObservability observability) {
         this.scalarService = scalarService;
+        this.observability = observability;
     }
 
     @GetMapping
     public List<Scalar> getAllScalars() {
-        logger.info("Getting all scalars");
-        return scalarService.getAllScalars();
+        return observability.observeHttp("scalar.list", Map.of(), () -> {
+            logger.info("Getting all scalars");
+            return scalarService.getAllScalars();
+        });
     }
 
     @GetMapping("/{id}")
     public Scalar getScalar(@NonNull @PathVariable Long id) {
-        logger.info("Getting scalar by id: {}", id);
-        Scalar scalar = scalarService.getScalar(id);
-        if (scalar == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Scalar not found");
-        }
-        return scalar;
+        return observability.observeHttp("scalar.get", Map.of("scalar.id", id.toString()), () -> {
+            logger.info("Getting scalar by id: {}", id);
+            Scalar scalar = scalarService.getScalar(id);
+            if (scalar == null) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Scalar not found");
+            }
+            return scalar;
+        });
     }
 
     @PostMapping
     public Scalar createScalar(@RequestBody Scalar scalar) {
-        if (scalar == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Scalar parameter cannot be null");
-        }
-        logger.info("Creating scalar: {}", scalar);
-        return scalarService.createScalar(scalar);
+        return observability.observeHttp("scalar.create", Map.of(), () -> {
+            if (scalar == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Scalar parameter cannot be null");
+            }
+            logger.info("Creating scalar: {}", scalar);
+            return scalarService.createScalar(scalar);
+        });
     }
 
     @PutMapping("/{id}")
     public Scalar updateScalar(@NonNull @PathVariable Long id, @RequestBody Scalar scalarParam) {
-        if (scalarParam == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Scalar parameter cannot be null");
-        }
-        Scalar scalar = scalarService.getScalar(id);
-        if (scalar == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Scalar not found");
-        }
-        logger.info("Updating scalar by id: {}", scalar);
-        scalar.setName(scalarParam.getName());
-        scalar.setValue(scalarParam.getValue());
-        scalar.setCreatedAt(scalar.getCreatedAt());        
-        return scalarService.updateScalar(id, scalar);
+        return observability.observeHttp("scalar.put", Map.of("scalar.id", id.toString()), () -> {
+            if (scalarParam == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Scalar parameter cannot be null");
+            }
+            Scalar scalar = scalarService.getScalar(id);
+            if (scalar == null) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Scalar not found");
+            }
+            logger.info("Updating scalar by id: {}", scalar);
+            scalar.setName(scalarParam.getName());
+            scalar.setValue(scalarParam.getValue());
+            scalar.setCreatedAt(scalar.getCreatedAt());
+            return scalarService.updateScalar(id, scalar);
+        });
     }
 
     @DeleteMapping("/{id}")
     public void deleteScalar(@NonNull @PathVariable Long id) {
-        logger.info("Deleting scalar by id: {}", id);
-        scalarService.deleteScalar(id);
+        observability.observeHttpVoid("scalar.delete", Map.of("scalar.id", id.toString()), () -> {
+            logger.info("Deleting scalar by id: {}", id);
+            scalarService.deleteScalar(id);
+        });
     }
 }

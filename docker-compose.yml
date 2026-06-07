@@ -72,6 +72,7 @@ services:
     container_name: streaming-kafka-connect
     ports:
       - "8083:8083"
+      - "9404:9404"
     environment:
       CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
       CONNECT_BOOTSTRAP_SERVERS: kafka:9092
@@ -86,6 +87,7 @@ services:
       CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
       CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
       CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      KAFKA_OPTS: "-javaagent:/usr/share/jmx/jmx_prometheus_javaagent.jar=9404:/etc/jmx/kafka-connect.yml"
     depends_on:
       - kafka
       - schema-registry
@@ -94,28 +96,99 @@ services:
       - streaming
     restart: unless-stopped
 
-  # streaming-app:
-  #   build: .
-  #   ports:
-  #     - "8080:8080"
-  #   environment:
-  #     - JAVA_OPTS=-Xmx512m -Xms256m
-  #     - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/geo
-  #     - SPRING_DATASOURCE_USERNAME=streaming_geo
-  #     - SPRING_DATASOURCE_PASSWORD=streaming_geo_password
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   networks:
-  #     - streaming
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 40s 
-  
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.109.0
+    container_name: streaming-otel-collector
+    command: ["--config=/etc/otel-collector/config.yaml"]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./docker/otel-collector/config.yaml:/etc/otel-collector/config.yaml:ro
+    depends_on:
+      - tempo
+    networks:
+      - streaming
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: streaming-tempo
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    ports:
+      - "3200:3200"
+    volumes:
+      - ./docker/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    networks:
+      - streaming
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: streaming-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - otel-collector
+      - kafka-connect
+    networks:
+      - streaming
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: streaming-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - tempo
+    networks:
+      - streaming
+    restart: unless-stopped
+
+  streaming-app:
+    build: .
+    container_name: streaming-app
+    ports:
+      - "8080:8080"
+    environment:
+      - JAVA_OPTS=-Xmx512m -Xms256m
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/geo
+      - SPRING_DATASOURCE_USERNAME=streaming_geo
+      - SPRING_DATASOURCE_PASSWORD=streaming_geo_password
+      - MANAGEMENT_OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces
+      - MANAGEMENT_OTLP_METRICS_EXPORT_URL=http://otel-collector:4318/v1/metrics
+    depends_on:
+      postgres:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    networks:
+      - streaming
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 networks:
   streaming:
@@ -125,4 +198,10 @@ volumes:
   postgres_data:
     driver: local
   kafka-volume:
-    driver: local 
+    driver: local
+  tempo_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local

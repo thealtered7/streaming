@@ -8,8 +8,11 @@ RUN gradle build --no-daemon
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 
-# Create a non-root user
-RUN addgroup --system --gid 1001 appuser && \
+# Create a non-root user and install curl for container healthchecks
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    addgroup --system --gid 1001 appuser && \
     adduser --system --uid 1001 --ingroup appuser appuser
 
 # Copy the built JAR from build stage (Spring Boot executable JAR)
