@@ -8,6 +8,11 @@ Start the stack:
 make docker-up
 ```
 
+Generate lots of scalar CDC:
+```bash
+for i in `seq 1 10000`; do make put-scalar ID=1 VALUE=$(echo "scale=2; 1.0 + ($SRANDOM % 90000) / 10000" | bc); done;
+```
+
 ## URLs
 
 | URL | Purpose |

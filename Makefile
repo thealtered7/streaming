@@ -1,4 +1,4 @@
-.PHONY: help build docker-build docker-run docker-up docker-down docker-stop clean test run geo-shell extract-pipeline extract-fart post-geoclient post-scalar put-scalar register-debezium scalars-to-stdout kafka-topics debezium-status debezium-logs
+.PHONY: help build docker-build docker-run docker-up docker-down docker-stop clean test run geo-shell extract-pipeline extract-fart post-geoclient post-scalar put-scalar register-debezium scalars-to-stdout cdc-file-write-to-stdout kafka-topics debezium-status debezium-logs
 
 # Default target
 help:
@@ -21,6 +21,7 @@ help:
 	@echo "  debezium-status   - Show Debezium connector status (debug)"
 	@echo "  debezium-logs     - Show Kafka Connect logs (debug)"
 	@echo "  scalars-to-stdout  - Print scalar CDC topic contents from Kafka (requires docker-up)"
+	@echo "  cdc-file-write-to-stdout - Print cdc-file-write topic (JSON) from Kafka to stdout (requires docker-up)"
 	@echo "  kafka-topics     - List Kafka topics (requires docker-up)"
 	@echo "  clean          - Clean build artifacts"
 	@echo "  clean-docker   - Remove Docker containers and images"
@@ -86,6 +87,24 @@ scalars-to-stdout:
 			--topic geo.public.scalars \
 			--from-beginning \
 			--property schema.registry.url=http://localhost:8081; \
+	fi
+
+# Consume and print cdc-file-write topic (JSON) to stdout
+# Note: Requires docker-up and messages on the cdc-file-write topic
+cdc-file-write-to-stdout:
+	@if docker exec streaming-kafka echo >/dev/null 2>&1; then \
+		docker exec -it streaming-kafka \
+			kafka-console-consumer.sh \
+			--bootstrap-server localhost:9092 \
+			--topic cdc-file-write \
+			--from-beginning; \
+	else \
+		docker run -it --rm --network streaming_streaming \
+			bitnamilegacy/kafka:3.9 \
+			kafka-console-consumer.sh \
+			--bootstrap-server kafka:9092 \
+			--topic cdc-file-write \
+			--from-beginning; \
 	fi
 
 # Show Debezium connector status (useful for debugging)
