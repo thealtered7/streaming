@@ -11,14 +11,14 @@ import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 
 @Component
-public class GeoServiceObservability {
+public class Observability {
 
     public static final String PREFIX = "geo_service";
 
     private final ObservationRegistry observationRegistry;
     private final MeterRegistry meterRegistry;
 
-    public GeoServiceObservability(ObservationRegistry observationRegistry, MeterRegistry meterRegistry) {
+    public Observability(ObservationRegistry observationRegistry, MeterRegistry meterRegistry) {
         this.observationRegistry = observationRegistry;
         this.meterRegistry = meterRegistry;
     }

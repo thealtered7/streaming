@@ -17,7 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.keene.service.GeoService;
 import com.keene.streaming.core.models.GeoClient;
-import com.keene.streaming.observability.GeoServiceObservability;
+import com.keene.streaming.observability.Observability;
 
 @RestController
 public class GeoClientController {
@@ -25,9 +25,9 @@ public class GeoClientController {
     private static final Logger logger = LoggerFactory.getLogger(GeoClientController.class);
 
     private final GeoService geoService;
-    private final GeoServiceObservability observability;
+    private final Observability observability;
 
-    public GeoClientController(GeoService geoService, GeoServiceObservability observability) {
+    public GeoClientController(GeoService geoService, Observability observability) {
         this.geoService = geoService;
         this.observability = observability;
     }

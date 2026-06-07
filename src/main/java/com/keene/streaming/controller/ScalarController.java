@@ -19,7 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.keene.service.ScalarService;
 import com.keene.streaming.core.models.Scalar;
-import com.keene.streaming.observability.GeoServiceObservability;
+import com.keene.streaming.observability.Observability;
 
 @RestController
 @RequestMapping("/scalars")
@@ -28,9 +28,9 @@ public class ScalarController {
     private static final Logger logger = LoggerFactory.getLogger(ScalarController.class);
 
     private final ScalarService scalarService;
-    private final GeoServiceObservability observability;
+    private final Observability observability;
 
-    public ScalarController(ScalarService scalarService, GeoServiceObservability observability) {
+    public ScalarController(ScalarService scalarService, Observability observability) {
         this.scalarService = scalarService;
         this.observability = observability;
     }

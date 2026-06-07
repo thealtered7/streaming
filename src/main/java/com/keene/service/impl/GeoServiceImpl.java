@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 
 import com.keene.service.GeoService;
 import com.keene.streaming.core.models.GeoClient;
-import com.keene.streaming.observability.GeoServiceObservability;
+import com.keene.streaming.observability.Observability;
 import com.keene.streaming.repository.GeoClientRepository;
 
 @Service
@@ -18,9 +18,9 @@ public class GeoServiceImpl implements GeoService {
     private static final Logger logger = LoggerFactory.getLogger(GeoServiceImpl.class);
 
     private final GeoClientRepository geoClientRepository;
-    private final GeoServiceObservability observability;
+    private final Observability observability;
 
-    public GeoServiceImpl(GeoClientRepository geoClientRepository, GeoServiceObservability observability) {
+    public GeoServiceImpl(GeoClientRepository geoClientRepository, Observability observability) {
         this.geoClientRepository = geoClientRepository;
         this.observability = observability;
     }

@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 
 import com.keene.service.ScalarService;
 import com.keene.streaming.core.models.Scalar;
-import com.keene.streaming.observability.GeoServiceObservability;
+import com.keene.streaming.observability.Observability;
 import com.keene.streaming.repository.ScalarRepository;
 
 @Service
@@ -17,9 +17,9 @@ public class ScalarServiceImpl implements ScalarService {
     private static final Logger logger = LoggerFactory.getLogger(ScalarServiceImpl.class);
 
     private final ScalarRepository scalarRepository;
-    private final GeoServiceObservability observability;
+    private final Observability observability;
 
-    public ScalarServiceImpl(ScalarRepository scalarRepository, GeoServiceObservability observability) {
+    public ScalarServiceImpl(ScalarRepository scalarRepository, Observability observability) {
         this.scalarRepository = scalarRepository;
         this.observability = observability;
     }
