@@ -1,5 +1,7 @@
 package com.keene.streaming.repository;
 
+import java.util.List;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.TypedQuery;
@@ -8,6 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Repository;
+
+import com.keene.streaming.core.models.Scalar;
 
 /**
  * Custom implementation of ScalarRepository.
@@ -31,5 +35,16 @@ public class ScalarRepositoryImpl implements ScalarRepositoryCustom {
         Long count = query.getSingleResult();
         logger.debug("Found {} scalars", count);
         return count != null ? count : 0L;
+    }
+
+    @Override
+    @NonNull
+    public List<Scalar> findScalars(int offset, int count) {
+        logger.debug("Finding scalars with offset {} and count {}", offset, count);
+        String jpql = "SELECT s FROM Scalar s ORDER BY s.id ASC";
+        TypedQuery<Scalar> query = entityManager.createQuery(jpql, Scalar.class);
+        query.setFirstResult(offset);
+        query.setMaxResults(count);
+        return query.getResultList();
     }
 }

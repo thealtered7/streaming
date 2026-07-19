@@ -38,6 +38,9 @@ dependencies {
     
     // Log4j2 dependencies
     implementation 'org.springframework.boot:spring-boot-starter-log4j2'
+
+    // CLI
+    implementation 'info.picocli:picocli:4.7.6'
     
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
@@ -74,6 +77,14 @@ task dockerRun(type: Exec) {
         '-e', 'MANAGEMENT_OTLP_METRICS_EXPORT_URL=http://otel-collector:4318/v1/metrics',
         'streaming-app'
 } 
+
+// Run the service-client CLI
+task serviceClient(type: JavaExec) {
+    group = 'application'
+    description = 'Run the service-client CLI (e.g. --args="generate-scalars --scalar-count=100")'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.keene.client.ServiceClient'
+}
 
 // Generate DDL scripts from JPA entities
 task generateDdl(type: JavaExec) {

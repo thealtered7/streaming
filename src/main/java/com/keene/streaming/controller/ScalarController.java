@@ -1,6 +1,5 @@
 package com.keene.streaming.controller;
 
-import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -14,11 +13,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.keene.service.ScalarService;
 import com.keene.streaming.core.models.Scalar;
+import com.keene.streaming.core.models.ScalarPage;
 import com.keene.streaming.observability.Observability;
 
 @RestController
@@ -36,10 +37,16 @@ public class ScalarController {
     }
 
     @GetMapping
-    public List<Scalar> getAllScalars() {
-        return observability.observeHttp("scalar.list", Map.of(), () -> {
-            logger.info("Getting all scalars");
-            return scalarService.getAllScalars();
+    public ScalarPage getAllScalars(
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "1000") int count) {
+        return observability.observeHttp("scalar.list",
+                Map.of("scalar.offset", Integer.toString(offset), "scalar.count", Integer.toString(count)), () -> {
+            if (offset < 0 || count < 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "offset and count must not be negative");
+            }
+            logger.info("Getting scalars with offset {} and count {}", offset, count);
+            return scalarService.getAllScalars(offset, count);
         });
     }
 

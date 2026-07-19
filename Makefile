@@ -1,4 +1,4 @@
-.PHONY: help build docker-build docker-run docker-up docker-down docker-stop clean test run geo-shell extract-pipeline extract-fart post-geoclient post-scalar put-scalar register-debezium scalars-to-stdout cdc-file-write-to-stdout kafka-topics debezium-status debezium-logs
+.PHONY: help build docker-build docker-run docker-up docker-down docker-stop clean test run geo-shell extract-pipeline extract-fart post-geoclient post-scalar put-scalar register-debezium scalars-to-stdout cdc-file-write-to-stdout kafka-topics debezium-status debezium-logs service-client
 
 # Default target
 help:
@@ -26,6 +26,7 @@ help:
 	@echo "  clean          - Clean build artifacts"
 	@echo "  clean-docker   - Remove Docker containers and images"
 	@echo "  put-lots-of-scalars - Put 1000 scalars to the /scalars endpoint"
+	@echo "  service-client   - Run the Java service-client CLI (e.g. make service-client ARGS='generate-scalars --scalar-count=100')"
 
 # Build the project
 build:
@@ -241,6 +242,17 @@ put-scalar:
 		-d "{\"name\": \"$$NAME\", \"value\": $$VALUE}" \
 		-w "\n" \
 		-s
+
+# Run the service-client CLI
+# Usage: make service-client ARGS='generate-scalars --scalar-count=100'
+service-client:
+	@./bin/service-client $(ARGS)
+
+generate-scalars:
+	./bin/service-client generate-scalars --scalar-count=1000000
+
+mutate-scalars:
+	./bin/service-client mutate-scalars --scalar-count=10000
 
 # Clean build artifacts
 clean:

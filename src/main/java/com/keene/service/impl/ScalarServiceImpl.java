@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import com.keene.service.ScalarService;
 import com.keene.streaming.core.models.Scalar;
+import com.keene.streaming.core.models.ScalarPage;
 import com.keene.streaming.observability.Observability;
 import com.keene.streaming.repository.ScalarRepository;
 
@@ -61,8 +62,12 @@ public class ScalarServiceImpl implements ScalarService {
     }
 
     @Override
-    public List<Scalar> getAllScalars() {
-        return observability.observeService("scalar_service.get_all_scalars", () -> scalarRepository.findAll());
+    public ScalarPage getAllScalars(int offset, int count) {
+        return observability.observeService("scalar_service.get_all_scalars", () -> {
+            logger.info("Getting scalars with offset {} and count {}", offset, count);
+            List<Scalar> scalars = scalarRepository.findScalars(offset, count);
+            return new ScalarPage(scalars, offset, count);
+        });
     }
 
     @Override
