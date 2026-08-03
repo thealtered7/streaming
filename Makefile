@@ -21,7 +21,7 @@ help:
 	@echo "  debezium-status   - Show Debezium connector status (debug)"
 	@echo "  debezium-logs     - Show Kafka Connect logs (debug)"
 	@echo "  scalars-to-stdout  - Print scalar CDC topic contents from Kafka (requires docker-up)"
-	@echo "  cdc-file-write-to-stdout - Print cdc-file-write topic (JSON) from Kafka to stdout (requires docker-up)"
+	@echo "  cdc-file-write-to-stdout - Print cdc-file-write topic (JSON Schema) from Kafka to stdout (requires docker-up)"
 	@echo "  kafka-topics     - List Kafka topics (requires docker-up)"
 	@echo "  clean          - Clean build artifacts"
 	@echo "  clean-docker   - Remove Docker containers and images"
@@ -90,22 +90,24 @@ scalars-to-stdout:
 			--property schema.registry.url=http://localhost:8081; \
 	fi
 
-# Consume and print cdc-file-write topic (JSON) to stdout
+# Consume and print cdc-file-write topic (JSON Schema via Schema Registry) to stdout
 # Note: Requires docker-up and messages on the cdc-file-write topic
 cdc-file-write-to-stdout:
-	@if docker exec streaming-kafka echo >/dev/null 2>&1; then \
-		docker exec -it streaming-kafka \
-			kafka-console-consumer.sh \
-			--bootstrap-server localhost:9092 \
-			--topic cdc-file-write \
-			--from-beginning; \
-	else \
-		docker run -it --rm --network streaming_streaming \
-			bitnamilegacy/kafka:3.9 \
-			kafka-console-consumer.sh \
+	@if docker exec streaming-schema-registry echo >/dev/null 2>&1; then \
+		docker exec -it streaming-schema-registry \
+			kafka-json-schema-console-consumer \
 			--bootstrap-server kafka:9092 \
 			--topic cdc-file-write \
-			--from-beginning; \
+			--from-beginning \
+			--property schema.registry.url=http://localhost:8081; \
+	else \
+		docker run -it --rm --network host \
+			confluentinc/cp-schema-registry:7.5.0 \
+			kafka-json-schema-console-consumer \
+			--bootstrap-server localhost:9092 \
+			--topic cdc-file-write \
+			--from-beginning \
+			--property schema.registry.url=http://localhost:8081; \
 	fi
 
 # Show Debezium connector status (useful for debugging)
