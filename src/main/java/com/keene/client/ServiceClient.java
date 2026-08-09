@@ -1,8 +1,11 @@
 package com.keene.client;
 
 import com.keene.client.command.DeleteScalarCommand;
+import com.keene.client.command.DeleteWideCommand;
 import com.keene.client.command.GenerateScalarsCommand;
+import com.keene.client.command.GenerateWideCommand;
 import com.keene.client.command.MutateScalarsCommand;
+import com.keene.client.command.MutateWideCommand;
 import com.keene.client.http.StreamingHttpException;
 
 import picocli.CommandLine;
@@ -12,12 +15,15 @@ import org.slf4j.LoggerFactory;
 
 @Command(
     name = "service-client",
-    description = "CLI for GeoService and Scalar Service HTTP APIs",
+    description = "CLI for GeoService, Scalar, and Wide Service HTTP APIs",
     mixinStandardHelpOptions = true,
     subcommands = {
         GenerateScalarsCommand.class,
         MutateScalarsCommand.class,
-        DeleteScalarCommand.class
+        DeleteScalarCommand.class,
+        GenerateWideCommand.class,
+        MutateWideCommand.class,
+        DeleteWideCommand.class
     }
 )
 public class ServiceClient implements Runnable {

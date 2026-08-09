@@ -1,4 +1,4 @@
-.PHONY: help build docker-build docker-run docker-up docker-down docker-stop clean test run geo-shell extract-pipeline extract-fart post-geoclient post-scalar put-scalar register-debezium scalars-to-stdout cdc-file-write-to-stdout kafka-topics debezium-status debezium-logs service-client
+.PHONY: help build docker-build docker-run docker-up docker-down docker-stop clean test run geo-shell extract-pipeline extract-fart post-geoclient post-scalar put-scalar post-wide put-wide register-debezium scalars-to-stdout wide-to-stdout cdc-file-write-to-stdout kafka-topics debezium-status debezium-logs service-client generate-scalars mutate-scalars generate-wide mutate-wide
 
 # Default target
 help:
@@ -17,10 +17,17 @@ help:
 	@echo "  post-geoclient - POST a GeoClient to the /geo-clients endpoint"
 	@echo "  post-scalar    - POST a Scalar to the /scalars endpoint"
 	@echo "  put-scalar       - PUT to update a Scalar by ID"
+	@echo "  post-wide      - POST a Wide row to the /wide endpoint"
+	@echo "  put-wide       - PUT to update a Wide row by ID"
+	@echo "  generate-scalars - Create many scalars via service-client"
+	@echo "  mutate-scalars   - Mutate many scalars via service-client"
+	@echo "  generate-wide  - Create many wide rows via service-client"
+	@echo "  mutate-wide    - Mutate many wide rows via service-client"
 	@echo "  register-debezium  - Register Debezium PostgreSQL connector (requires docker-up)"
 	@echo "  debezium-status   - Show Debezium connector status (debug)"
 	@echo "  debezium-logs     - Show Kafka Connect logs (debug)"
 	@echo "  scalars-to-stdout  - Print scalar CDC topic contents from Kafka (requires docker-up)"
+	@echo "  wide-to-stdout     - Print wide CDC topic contents from Kafka (requires docker-up)"
 	@echo "  cdc-file-write-to-stdout - Print cdc-file-write topic (JSON Schema) from Kafka to stdout (requires docker-up)"
 	@echo "  kafka-topics     - List Kafka topics (requires docker-up)"
 	@echo "  clean          - Clean build artifacts"
@@ -64,7 +71,7 @@ docker-up-d:
 docker-down:
 	docker compose down
 
-# List Kafka topics (useful to verify geo.public.scalars exists)
+# List Kafka topics (useful to verify geo.public.scalars / geo.public.wide exist)
 kafka-topics:
 	docker compose exec kafka kafka-topics.sh --list --bootstrap-server localhost:9092
 
@@ -86,6 +93,26 @@ scalars-to-stdout:
 			kafka-avro-console-consumer \
 			--bootstrap-server localhost:9092 \
 			--topic geo.public.scalars \
+			--from-beginning \
+			--property schema.registry.url=http://localhost:8081; \
+	fi
+
+# Consume and print wide CDC topic (geo.public.wide) to stdout
+# Note: Requires docker-up, register-debezium, and data in wide table.
+wide-to-stdout:
+	@if docker exec streaming-schema-registry echo >/dev/null 2>&1; then \
+		docker exec -it streaming-schema-registry \
+			kafka-avro-console-consumer \
+			--bootstrap-server kafka:9092 \
+			--topic geo.public.wide \
+			--from-beginning \
+			--property schema.registry.url=http://localhost:8081; \
+	else \
+		docker run -it --rm --network host \
+			confluentinc/cp-schema-registry:7.5.0 \
+			kafka-avro-console-consumer \
+			--bootstrap-server localhost:9092 \
+			--topic geo.public.wide \
 			--from-beginning \
 			--property schema.registry.url=http://localhost:8081; \
 	fi
@@ -245,16 +272,49 @@ put-scalar:
 		-w "\n" \
 		-s
 
+# POST a Wide row to the /wide endpoint
+# Usage: make post-wide [A=1] [B=2.5] [C=hello]
+# Note: Requires application to be running on localhost:8080
+post-wide:
+	@A=$${A:-1}; \
+	B=$${B:-2.5}; \
+	C=$${C:-hello}; \
+	curl -X POST http://localhost:8080/wide \
+		-H "Content-Type: application/json" \
+		-d "{\"a\": $$A, \"b\": $$B, \"c\": \"$$C\"}" \
+		-w "\n" \
+		-s
+
+# PUT to update a Wide row by ID
+# Usage: make put-wide ID=1 [A=1] [B=2.5] [C=hello]
+# Requires application to be running on localhost:8080
+put-wide:
+	@if [ -z "$$ID" ]; then echo "Error: ID is required. Usage: make put-wide ID=1 [A=1] [B=2.5] [C=hello]"; exit 1; fi; \
+	A=$${A:-1}; \
+	B=$${B:-2.5}; \
+	C=$${C:-hello}; \
+	curl -X PUT http://localhost:8080/wide/$$ID \
+		-H "Content-Type: application/json" \
+		-d "{\"a\": $$A, \"b\": $$B, \"c\": \"$$C\"}" \
+		-w "\n" \
+		-s
+
 # Run the service-client CLI
 # Usage: make service-client ARGS='generate-scalars --scalar-count=100'
 service-client:
 	@./bin/service-client $(ARGS)
 
 generate-scalars:
-	./bin/service-client generate-scalars --scalar-count=1000000
+	./bin/service-client generate-scalars --scalar-count=100000
 
 mutate-scalars:
 	./bin/service-client mutate-scalars --scalar-count=10000
+
+generate-wide:
+	./bin/service-client generate-wide --wide-count=100000
+
+mutate-wide:
+	./bin/service-client mutate-wide --wide-count=10000
 
 # Clean build artifacts
 clean:

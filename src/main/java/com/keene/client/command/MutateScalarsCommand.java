@@ -1,6 +1,8 @@
 package com.keene.client.command;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -48,13 +50,17 @@ public class MutateScalarsCommand implements Callable<Integer> {
             return 1;
         }
 
+        Set<Long> ids = new HashSet<>();
         for (int i = 0; i < scalarCount; i++) {
             Scalar scalar = randomScalar(scalars);
             double value = randomScalarValue();
             scalarApi.updateScalar(scalar.getId(), scalar.getName(), value);
+            ids.add(scalar.getId());
         }
 
         System.out.println("Mutated " + scalarCount + " scalars");
+        System.out.println("Ids: " + ids);
+        System.out.println("Ids size: " + ids.size());
         return 0;
     }
 

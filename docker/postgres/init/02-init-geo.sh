@@ -22,8 +22,41 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "geo" <<-EOSQL
     -- Create the scalars table matching the Scalar entity
     CREATE TABLE IF NOT EXISTS scalars (
         id BIGSERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
+        name VARCHAR(1048) NOT NULL,
         value DOUBLE PRECISION,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Create the wide table matching the Wide entity (a-z column types cycle INTEGER / DOUBLE PRECISION / VARCHAR)
+    CREATE TABLE IF NOT EXISTS wide (
+        id BIGSERIAL PRIMARY KEY,
+        a INTEGER,
+        b DOUBLE PRECISION,
+        c VARCHAR(4096),
+        d INTEGER,
+        e DOUBLE PRECISION,
+        f VARCHAR(4096),
+        g INTEGER,
+        h DOUBLE PRECISION,
+        i VARCHAR(4096),
+        j INTEGER,
+        k DOUBLE PRECISION,
+        l VARCHAR(4096),
+        m INTEGER,
+        n DOUBLE PRECISION,
+        o VARCHAR(4096),
+        p INTEGER,
+        q DOUBLE PRECISION,
+        r VARCHAR(4096),
+        s INTEGER,
+        t DOUBLE PRECISION,
+        u VARCHAR(4096),
+        v INTEGER,
+        w DOUBLE PRECISION,
+        x VARCHAR(4096),
+        y INTEGER,
+        z DOUBLE PRECISION,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
@@ -32,17 +65,23 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "geo" <<-EOSQL
     ALTER TABLE scalars ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;
     ALTER TABLE scalars ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
 
+    -- Ensure defaults on existing wide table (idempotent for re-runs)
+    ALTER TABLE wide ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;
+    ALTER TABLE wide ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
+
     -- Full replication for CDC (required for UPDATE/DELETE to include full row)
     ALTER TABLE geo_clients REPLICA IDENTITY FULL;
     ALTER TABLE scalars REPLICA IDENTITY FULL;
+    ALTER TABLE wide REPLICA IDENTITY FULL;
 
     -- Publication for Debezium CDC
     DROP PUBLICATION IF EXISTS debezium_publication;
-    CREATE PUBLICATION debezium_publication FOR TABLE geo_clients, scalars;
+    CREATE PUBLICATION debezium_publication FOR TABLE geo_clients, scalars, wide;
 
     -- WAL readers need SELECT for initial snapshot
     GRANT SELECT ON geo_clients TO wal_reader_role;
     GRANT SELECT ON scalars TO wal_reader_role;
+    GRANT SELECT ON wide TO wal_reader_role;
 
     -- Grant privileges on all existing tables in public schema
     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO streaming_geo;
@@ -62,17 +101,24 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "geo" <<-EOSQL
     -- Grant privileges on the scalars table
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE scalars TO streaming_geo;
 
+    -- Grant privileges on the wide table
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE wide TO streaming_geo;
+
     -- Grant usage on the sequence for geo_clients
     GRANT USAGE, SELECT ON SEQUENCE geo_clients_id_seq TO streaming_geo;
 
     -- Grant usage on the sequence for scalars
     GRANT USAGE, SELECT ON SEQUENCE scalars_id_seq TO streaming_geo;
 
+    -- Grant usage on the sequence for wide
+    GRANT USAGE, SELECT ON SEQUENCE wide_id_seq TO streaming_geo;
+
     -- Create indexes for better performance
     CREATE INDEX IF NOT EXISTS idx_geo_clients_client_id ON geo_clients(client_id);
     CREATE INDEX IF NOT EXISTS idx_geo_clients_created_at ON geo_clients(created_at);
     CREATE INDEX IF NOT EXISTS idx_scalars_name ON scalars(name);
     CREATE INDEX IF NOT EXISTS idx_scalars_created_at ON scalars(created_at);
+    CREATE INDEX IF NOT EXISTS idx_wide_created_at ON wide(created_at);
 
     -- Trigger function to set updated_at on INSERT and UPDATE
     CREATE OR REPLACE FUNCTION set_updated_at()
@@ -96,6 +142,12 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "geo" <<-EOSQL
     DROP TRIGGER IF EXISTS trg_scalars_updated_at ON scalars;
     CREATE TRIGGER trg_scalars_updated_at
         BEFORE INSERT OR UPDATE ON scalars
+        FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+    -- Attach trigger to wide
+    DROP TRIGGER IF EXISTS trg_wide_updated_at ON wide;
+    CREATE TRIGGER trg_wide_updated_at
+        BEFORE INSERT OR UPDATE ON wide
         FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 EOSQL
 
